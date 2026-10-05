@@ -5,4 +5,11 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?|@react-native-async-storage|react-native-calendars|react-native-swipe-gestures|recyclerlistview)/)',
   ],
+  // The real native module isn't available under Jest; redirect every import
+  // to the package's own in-memory mock (used by useCategoryOverrides, usePin,
+  // useOnboardingStatus, and Supabase's session storage).
+  moduleNameMapper: {
+    '^@react-native-async-storage/async-storage$':
+      '@react-native-async-storage/async-storage/jest',
+  },
 };

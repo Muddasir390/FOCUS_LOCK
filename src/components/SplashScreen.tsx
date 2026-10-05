@@ -1,12 +1,27 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { useLoopValue } from '../hooks/useLoopValue';
-import { colors } from '../theme';
+import { useTheme } from '../hooks/useTheme';
+import { ThemeColors } from '../theme';
 import { Glow } from './AnimatedBackground';
 
 const LOGO_SIZE = 132;
 
-function PulseRing({ delay }: { delay: number }) {
+function createRingStyle(colors: ThemeColors) {
+  return StyleSheet.create({
+    ring: {
+      position: 'absolute',
+      width: LOGO_SIZE,
+      height: LOGO_SIZE,
+      borderRadius: LOGO_SIZE * 0.3,
+      borderWidth: 2,
+      borderColor: colors.accent,
+    },
+  });
+}
+
+function PulseRing({ delay, colors }: { delay: number; colors: ThemeColors }) {
+  const styles = useMemo(() => createRingStyle(colors), [colors]);
   const pulse = useLoopValue(2200, { delay });
   const scale = pulse.interpolate({
     inputRange: [0, 1],
@@ -23,6 +38,8 @@ function PulseRing({ delay }: { delay: number }) {
 }
 
 export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const logoScale = useRef(new Animated.Value(0.3)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const logoTilt = useRef(new Animated.Value(0)).current;
@@ -104,8 +121,8 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
     <Animated.View style={[styles.root, { opacity: screenOpacity }]}>
       <View style={styles.center}>
         <Glow size={420} color={colors.primary} style={styles.halo} />
-        <PulseRing delay={0} />
-        <PulseRing delay={1100} />
+        <PulseRing delay={0} colors={colors} />
+        <PulseRing delay={1100} colors={colors} />
         <Animated.Image
           source={require('../assets/logo.png')}
           style={[
@@ -133,44 +150,38 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  center: {
-    width: LOGO_SIZE,
-    height: LOGO_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  halo: {
-    position: 'absolute',
-  },
-  ring: {
-    position: 'absolute',
-    width: LOGO_SIZE,
-    height: LOGO_SIZE,
-    borderRadius: LOGO_SIZE * 0.3,
-    borderWidth: 2,
-    borderColor: colors.accent,
-  },
-  logo: {
-    width: LOGO_SIZE,
-    height: LOGO_SIZE,
-    borderRadius: LOGO_SIZE * 0.25,
-  },
-  title: {
-    marginTop: 40,
-    fontSize: 36,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    color: colors.text,
-  },
-  tagline: {
-    marginTop: 8,
-    fontSize: 16,
-    color: colors.textMuted,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    root: {
+      ...StyleSheet.absoluteFill,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    center: {
+      width: LOGO_SIZE,
+      height: LOGO_SIZE,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    halo: {
+      position: 'absolute',
+    },
+    logo: {
+      width: LOGO_SIZE,
+      height: LOGO_SIZE,
+      borderRadius: LOGO_SIZE * 0.25,
+    },
+    title: {
+      marginTop: 40,
+      fontSize: 36,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      color: colors.text,
+    },
+    tagline: {
+      marginTop: 8,
+      fontSize: 16,
+      color: colors.textMuted,
+    },
+  });
+}

@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLoopValue } from '../hooks/useLoopValue';
-import { colors, radius } from '../theme';
+import { useTheme } from '../hooks/useTheme';
+import { radius, ThemeColors } from '../theme';
 
 type Props = {
   usageAccess: boolean;
@@ -27,6 +28,8 @@ function Step({
   highlight: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStepStyles(colors), [colors]);
   const check = useRef(new Animated.Value(done ? 1 : 0)).current;
   const pulse = useLoopValue(900, { pingPong: true });
 
@@ -77,6 +80,8 @@ export default function SetupBanner({
   onAllowOverlay,
   onOpenAppInfo,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const enter = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -121,8 +126,11 @@ export default function SetupBanner({
 
       <View style={styles.help}>
         <Text style={styles.helpText}>
-          Android says "App was denied access"? Open app info, tap the ⋮ menu
-          (top right) and choose "Allow restricted settings", then try again.
+          Toggle not responding, or Android says "App was denied access"?
+          That's a one-time Android security check for apps installed outside
+          the Play Store — it won't happen once FocusLock is published there.
+          Open app info, tap the ⋮ menu (top right) and choose "Allow
+          restricted settings", then come back and try again.
         </Text>
         <Pressable onPress={onOpenAppInfo} hitSlop={8}>
           <Text style={styles.helpLink}>Open app info</Text>
@@ -132,85 +140,92 @@ export default function SetupBanner({
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginBottom: 4,
-    padding: 18,
-    gap: 14,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 92, 255, 0.45)',
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  subtitle: {
-    marginTop: -8,
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  step: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  badge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceAlt,
-  },
-  badgeDone: {
-    backgroundColor: colors.accent,
-  },
-  badgeText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  stepMeta: {
-    flex: 1,
-    gap: 2,
-  },
-  stepTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  stepDescription: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  help: {
-    gap: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  helpText: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: colors.textMuted,
-  },
-  helpLink: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.accent,
-  },
-  allow: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-  },
-  allowText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    card: {
+      marginBottom: 4,
+      padding: 18,
+      gap: 14,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: 'rgba(124, 92, 255, 0.45)',
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    subtitle: {
+      marginTop: -8,
+      fontSize: 13,
+      color: colors.textMuted,
+    },
+    help: {
+      gap: 8,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    helpText: {
+      fontSize: 12,
+      lineHeight: 17,
+      color: colors.textMuted,
+    },
+    helpLink: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.accent,
+    },
+  });
+}
+
+function createStepStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    step: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    badge: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceAlt,
+    },
+    badgeDone: {
+      backgroundColor: colors.accent,
+    },
+    badgeText: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    stepMeta: {
+      flex: 1,
+      gap: 2,
+    },
+    stepTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    stepDescription: {
+      fontSize: 12,
+      color: colors.textMuted,
+    },
+    allow: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: radius.pill,
+      backgroundColor: colors.primary,
+    },
+    allowText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: '#FFFFFF',
+    },
+  });
+}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Animated,
   Image,
@@ -8,7 +8,8 @@ import {
   ViewStyle,
 } from 'react-native';
 import { useLoopValue } from '../hooks/useLoopValue';
-import { colors } from '../theme';
+import { useTheme } from '../hooks/useTheme';
+import { ThemeColors } from '../theme';
 
 /**
  * A soft radial glow. It is one pre-rendered white gradient tinted to `color`, which keeps the
@@ -64,7 +65,7 @@ function DriftingGlow({
   return (
     <Animated.View
       style={[
-        styles.glow,
+        staticStyles.glow,
         style,
         { transform: [{ translateX }, { translateY }, { scale }] },
       ]}
@@ -73,6 +74,13 @@ function DriftingGlow({
     </Animated.View>
   );
 }
+
+// Colorless, so shared as-is rather than recomputed per theme.
+const staticStyles = StyleSheet.create({
+  glow: {
+    position: 'absolute',
+  },
+});
 
 /**
  * Dark backdrop with slowly drifting colour glows. Pass `animated={false}` to freeze it: an
@@ -83,6 +91,8 @@ export default function AnimatedBackground({
 }: {
   animated?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={styles.root} pointerEvents="none">
       <DriftingGlow
@@ -113,25 +123,24 @@ export default function AnimatedBackground({
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: colors.bg,
-    overflow: 'hidden',
-  },
-  glow: {
-    position: 'absolute',
-  },
-  topRight: {
-    top: -190,
-    right: -170,
-  },
-  bottomLeft: {
-    bottom: -190,
-    left: -190,
-  },
-  midLeft: {
-    top: '38%',
-    left: -170,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    root: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: colors.bg,
+      overflow: 'hidden',
+    },
+    topRight: {
+      top: -190,
+      right: -170,
+    },
+    bottomLeft: {
+      bottom: -190,
+      left: -190,
+    },
+    midLeft: {
+      top: '38%',
+      left: -170,
+    },
+  });
+}

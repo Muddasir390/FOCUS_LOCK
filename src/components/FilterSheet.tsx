@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius } from '../theme';
+import { useTheme } from '../hooks/useTheme';
+import { radius, ThemeColors } from '../theme';
 import FilterChips, { AppFilter } from './FilterChips';
 
 type Props = {
@@ -20,6 +21,8 @@ export default function FilterSheet({
   onChangeFilter,
   onClose,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
   const open = useRef(new Animated.Value(0)).current;
@@ -100,64 +103,66 @@ export default function FilterSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: '#000000',
-  },
-  dismiss: {
-    ...StyleSheet.absoluteFill,
-  },
-  sheet: {
-    // 20px, not 24, to match FilterChips' -20 edge-bleed margin.
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: colors.border,
-  },
-  handle: {
-    alignSelf: 'center',
-    width: 44,
-    height: 5,
-    borderRadius: 3,
-    marginBottom: 20,
-    backgroundColor: colors.surfaceAlt,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  reset: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.accent,
-  },
-  done: {
-    marginTop: 24,
-    height: 54,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-  },
-  doneText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    backdrop: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: '#000000',
+    },
+    dismiss: {
+      ...StyleSheet.absoluteFill,
+    },
+    sheet: {
+      // 20px, not 24, to match FilterChips' -20 edge-bleed margin.
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 30,
+      borderTopRightRadius: 30,
+      borderWidth: 1,
+      borderBottomWidth: 0,
+      borderColor: colors.border,
+    },
+    handle: {
+      alignSelf: 'center',
+      width: 44,
+      height: 5,
+      borderRadius: 3,
+      marginBottom: 20,
+      backgroundColor: colors.surfaceAlt,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 16,
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    reset: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.accent,
+    },
+    done: {
+      marginTop: 24,
+      height: 54,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primary,
+    },
+    doneText: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: '#FFFFFF',
+    },
+  });
+}

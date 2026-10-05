@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text } from 'react-native';
-import { colors } from '../theme';
+import { useTheme } from '../hooks/useTheme';
+import { ThemeColors } from '../theme';
 
 type Props = {
   value: boolean;
@@ -20,6 +21,8 @@ export default function ProtectionSwitch({
   disabled,
   onValueChange,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const position = useRef(new Animated.Value(value ? 1 : 0)).current;
 
   useEffect(() => {
@@ -58,35 +61,37 @@ export default function ProtectionSwitch({
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  disabled: {
-    opacity: 0.55,
-  },
-  track: {
-    width: TRACK_WIDTH,
-    height: THUMB + PADDING * 2,
-    borderRadius: (THUMB + PADDING * 2) / 2,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: 'center',
-  },
-  thumb: {
-    position: 'absolute',
-    width: THUMB,
-    height: THUMB,
-    borderRadius: THUMB / 2,
-    backgroundColor: '#FFFFFF',
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textMuted,
-  },
-  labelOn: {
-    color: colors.accent,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    root: {
+      alignItems: 'center',
+      gap: 4,
+    },
+    disabled: {
+      opacity: 0.55,
+    },
+    track: {
+      width: TRACK_WIDTH,
+      height: THUMB + PADDING * 2,
+      borderRadius: (THUMB + PADDING * 2) / 2,
+      borderWidth: 1,
+      borderColor: colors.border,
+      justifyContent: 'center',
+    },
+    thumb: {
+      position: 'absolute',
+      width: THUMB,
+      height: THUMB,
+      borderRadius: THUMB / 2,
+      backgroundColor: '#FFFFFF',
+    },
+    label: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textMuted,
+    },
+    labelOn: {
+      color: colors.accent,
+    },
+  });
+}

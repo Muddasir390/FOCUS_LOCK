@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
   Animated,
   Pressable,
@@ -7,7 +7,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { colors, radius } from '../theme';
+import { useTheme } from '../hooks/useTheme';
+import { radius, ThemeColors } from '../theme';
 
 type Props = {
   value: string;
@@ -15,6 +16,8 @@ type Props = {
 };
 
 function SearchIcon() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createIconStyles(colors), [colors]);
   return (
     <View style={styles.iconBox}>
       <View style={styles.lens} />
@@ -24,6 +27,8 @@ function SearchIcon() {
 }
 
 export default function SearchBar({ value, onChangeText }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const focus = useRef(new Animated.Value(0)).current;
 
   const animateTo = (toValue: number) =>
@@ -68,46 +73,53 @@ export default function SearchBar({ value, onChangeText }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    height: 50,
-    paddingHorizontal: 16,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 0,
-    fontSize: 15,
-    color: colors.text,
-  },
-  clear: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  iconBox: {
-    width: 18,
-    height: 18,
-  },
-  lens: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: colors.textMuted,
-  },
-  handle: {
-    position: 'absolute',
-    right: 1,
-    bottom: 2,
-    width: 7,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: colors.textMuted,
-    transform: [{ rotate: '45deg' }],
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    wrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      height: 50,
+      paddingHorizontal: 16,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1.5,
+    },
+    input: {
+      flex: 1,
+      paddingVertical: 0,
+      fontSize: 15,
+      color: colors.text,
+    },
+    clear: {
+      fontSize: 14,
+      color: colors.textMuted,
+    },
+  });
+}
+
+function createIconStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    iconBox: {
+      width: 18,
+      height: 18,
+    },
+    lens: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      borderWidth: 2,
+      borderColor: colors.textMuted,
+    },
+    handle: {
+      position: 'absolute',
+      right: 1,
+      bottom: 2,
+      width: 7,
+      height: 2,
+      borderRadius: 1,
+      backgroundColor: colors.textMuted,
+      transform: [{ rotate: '45deg' }],
+    },
+  });
+}

@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text } from 'react-native';
-import { colors, radius } from '../theme';
+import { useTheme } from '../hooks/useTheme';
+import { radius, ThemeColors } from '../theme';
 
 type Props = {
   icon: string;
@@ -17,6 +18,8 @@ export default function EmptyState({
   actionLabel,
   onAction,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const enter = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -49,38 +52,40 @@ export default function EmptyState({
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    alignItems: 'center',
-    paddingHorizontal: 40,
-    paddingTop: 60,
-    gap: 10,
-  },
-  icon: {
-    fontSize: 48,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-  },
-  message: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  button: {
-    marginTop: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-  },
-  buttonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    root: {
+      alignItems: 'center',
+      paddingHorizontal: 40,
+      paddingTop: 60,
+      gap: 10,
+    },
+    icon: {
+      fontSize: 48,
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.text,
+      textAlign: 'center',
+    },
+    message: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.textMuted,
+      textAlign: 'center',
+    },
+    button: {
+      marginTop: 12,
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      borderRadius: radius.pill,
+      backgroundColor: colors.primary,
+    },
+    buttonText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
+  });
+}

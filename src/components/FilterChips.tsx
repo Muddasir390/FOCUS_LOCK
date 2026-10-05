@@ -6,7 +6,8 @@ import {
   StyleSheet,
   Text,
 } from 'react-native';
-import { colors, radius } from '../theme';
+import { useTheme } from '../hooks/useTheme';
+import { radius, ThemeColors } from '../theme';
 
 export type AppFilter = 'all' | 'limited' | 'user' | 'system';
 
@@ -34,6 +35,8 @@ function Chip({
   selected: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemoStyles(colors);
   const active = useRef(new Animated.Value(selected ? 1 : 0)).current;
   const press = useRef(new Animated.Value(1)).current;
 
@@ -84,6 +87,8 @@ function Chip({
 }
 
 export default function FilterChips({ value, counts, onChange }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemoStyles(colors);
   return (
     <ScrollView
       horizontal
@@ -104,41 +109,47 @@ export default function FilterChips({ value, counts, onChange }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  // Bleeds to the screen edges so chips can scroll under the header's side padding.
-  scroll: {
-    marginHorizontal: -20,
-    flexGrow: 0,
-  },
-  row: {
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textMuted,
-  },
-  labelActive: {
-    color: '#FFFFFF',
-  },
-  count: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textMuted,
-    opacity: 0.8,
-  },
-  countActive: {
-    color: '#FFFFFF',
-    opacity: 0.9,
-  },
-});
+function useMemoStyles(colors: ThemeColors) {
+  return React.useMemo(() => createStyles(colors), [colors]);
+}
+
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    // Bleeds to the screen edges so chips can scroll under the header's side padding.
+    scroll: {
+      marginHorizontal: -20,
+      flexGrow: 0,
+    },
+    row: {
+      paddingHorizontal: 20,
+      gap: 10,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 9,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textMuted,
+    },
+    labelActive: {
+      color: '#FFFFFF',
+    },
+    count: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textMuted,
+      opacity: 0.8,
+    },
+    countActive: {
+      color: '#FFFFFF',
+      opacity: 0.9,
+    },
+  });
+}

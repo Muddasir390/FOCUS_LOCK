@@ -1,101 +1,69 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, StatusBar, StyleSheet, View } from 'react-native';
+import { StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AnimatedBackground from './src/components/AnimatedBackground';
 import SplashScreen from './src/components/SplashScreen';
-import { completeAuthRedirect, isPasswordRecovery } from './src/lib/oauth';
-import { supabase } from './src/lib/supabase';
-import AuthFlow from './src/screens/AuthFlow';
+import { useOnboardingStatus } from './src/hooks/useOnboardingStatus';
+import { ThemeProvider, useTheme } from './src/hooks/useTheme';
 import HomeScreen from './src/screens/HomeScreen';
-import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
+import SubscriptionScreen from './src/screens/SubscriptionScreen';
 
-type Stage = 'splash' | 'auth' | 'reset-password' | 'home';
+type Stage = 'splash' | 'onboarding' | 'subscription' | 'home';
 
-function App() {
+function AppContent() {
+  const { scheme } = useTheme();
   const [stage, setStage] = useState<Stage>('splash');
-  const [hasSession, setHasSession] = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
-  const [resetError, setResetError] = useState<string | null>(null);
+  const { complete, markComplete } = useOnboardingStatus();
   const splashDone = useRef(false);
 
   const advancePastSplash = useCallback(() => {
     splashDone.current = true;
     setStage(current =>
-      current === 'splash' ? (hasSession ? 'home' : 'auth') : current,
+      current === 'splash' ? (complete ? 'home' : 'onboarding') : current,
     );
-  }, [hasSession]);
+  }, [complete]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setHasSession(!!data.session);
-      if (splashDone.current) {
-        setStage(current =>
-          current === 'splash' ? (data.session ? 'home' : 'auth') : current,
-        );
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    const handleUrl = async (url: string) => {
-      if (!isPasswordRecovery(url)) return;
-      try {
-        await completeAuthRedirect(url);
-        setResetError(null);
-        setStage('reset-password');
-      } catch (err) {
-        setResetError(
-          err instanceof Error ? err.message : 'That reset link is invalid.',
-        );
-      }
-    };
-
-    Linking.getInitialURL().then(url => {
-      if (url) handleUrl(url);
-    });
-    const subscription = Linking.addEventListener('url', ({ url }) =>
-      handleUrl(url),
-    );
-    return () => subscription.remove();
-  }, []);
-
-  const finishSplash = useCallback(advancePastSplash, [advancePastSplash]);
-  const finishAuth = useCallback(() => setStage('home'), []);
-  const logout = useCallback(async () => {
-    await supabase.auth.signOut();
-    setStage('auth');
-  }, []);
-
-  const updatePassword = useCallback(async (password: string) => {
-    setResetError(null);
-    setResetLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    setResetLoading(false);
-    if (error) {
-      setResetError(error.message);
-      return;
+    if (splashDone.current) {
+      setStage(current =>
+        current === 'splash' ? (complete ? 'home' : 'onboarding') : current,
+      );
     }
+  }, [complete]);
+
+  const finishOnboarding = useCallback(() => setStage('subscription'), []);
+  const confirmSubscription = useCallback(() => {
+    markComplete();
     setStage('home');
-  }, []);
+  }, [markComplete]);
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle="light-content" />
+    <>
+      <StatusBar barStyle={scheme === 'light' ? 'dark-content' : 'light-content'} />
       <View style={styles.container}>
         {/* Drifts during the splash, then holds still to save battery. */}
         <AnimatedBackground animated={stage === 'splash'} />
-        {stage === 'splash' && <SplashScreen onFinish={finishSplash} />}
-        {stage === 'auth' && <AuthFlow onAuthenticated={finishAuth} />}
-        {stage === 'reset-password' && (
-          <ResetPasswordScreen
-            loading={resetLoading}
-            error={resetError}
-            onSubmit={updatePassword}
-          />
+        {stage === 'splash' && <SplashScreen onFinish={advancePastSplash} />}
+        {stage === 'onboarding' && (
+          <OnboardingScreen onDone={finishOnboarding} />
         )}
-        {stage === 'home' && <HomeScreen onLogout={logout} />}
+        {stage === 'subscription' && (
+          <SubscriptionScreen onConfirm={confirmSubscription} />
+        )}
+        {stage === 'home' && <HomeScreen />}
       </View>
-    </SafeAreaProvider>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <SafeAreaProvider>
+        <AppContent />
+      </SafeAreaProvider>
+    </ThemeProvider>
   );
 }
 

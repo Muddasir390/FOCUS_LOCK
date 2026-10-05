@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useRef } from 'react';
+import React, { memo, useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   Easing,
@@ -8,7 +8,9 @@ import {
   Text,
   View,
 } from 'react-native';
-import { colors, radius } from '../theme';
+import { AppCategory, CATEGORY_LABELS } from '../data/appCategories';
+import { useTheme } from '../hooks/useTheme';
+import { radius, ThemeColors } from '../theme';
 import type { InstalledApp } from '../types';
 import { formatDuration, formatMinutes } from '../utils/time';
 
@@ -22,13 +24,34 @@ type Props = {
   usedMs: number;
   /** True when a time-window rule (daily or date-specific) blocks this app right now, regardless of minutes used. */
   timeBlocked: boolean;
+  /** True when this app has one or more date-specific limits set, beyond its plain daily limit. */
+  hasDateOverride: boolean;
+  /** True when this app has a recurring daily time-of-day block configured. */
+  hasDailyWindow: boolean;
+  /** The app's resolved category. */
+  category: AppCategory;
   onPress: (app: InstalledApp) => void;
+  /** Opens the category picker for this app, separately from the main limit sheet. */
+  onPressCategory: (app: InstalledApp) => void;
 };
 
 const STAGGER_COUNT = 8;
 const STAGGER_MS = 55;
 
-function AppCard({ app, index, limitMinutes, usedMs, timeBlocked, onPress }: Props) {
+function AppCard({
+  app,
+  index,
+  limitMinutes,
+  usedMs,
+  timeBlocked,
+  hasDateOverride,
+  hasDailyWindow,
+  category,
+  onPress,
+  onPressCategory,
+}: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const enter = useRef(new Animated.Value(0)).current;
   const press = useRef(new Animated.Value(1)).current;
 
@@ -125,6 +148,18 @@ function AppCard({ app, index, limitMinutes, usedMs, timeBlocked, onPress }: Pro
           </View>
         </View>
 
+        <View style={styles.tagsRow}>
+          <Pressable
+            onPress={() => onPressCategory(app)}
+            hitSlop={6}
+            style={styles.categoryChip}
+          >
+            <Text style={styles.categoryChipText}>{CATEGORY_LABELS[category]}</Text>
+          </Pressable>
+          {hasDateOverride && <Text style={styles.scheduleTag}>📅 Date limit</Text>}
+          {hasDailyWindow && <Text style={styles.scheduleTag}>🕐 Time block</Text>}
+        </View>
+
         {(limited || blocked) && (
           <View style={styles.footer}>
             <View style={styles.track}>
@@ -156,90 +191,116 @@ function AppCard({ app, index, limitMinutes, usedMs, timeBlocked, onPress }: Pro
 
 export default memo(AppCard);
 
-const styles = StyleSheet.create({
-  card: {
-    padding: 14,
-    gap: 12,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cardBlocked: {
-    borderColor: 'rgba(255, 92, 122, 0.4)',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  iconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceAlt,
-  },
-  icon: {
-    width: 40,
-    height: 40,
-  },
-  meta: {
-    flex: 1,
-    gap: 3,
-  },
-  name: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  packageName: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
-  },
-  pillLimited: {
-    backgroundColor: colors.primarySoft,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  pillText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  footer: {
-    gap: 8,
-  },
-  track: {
-    height: 6,
-    borderRadius: 3,
-    overflow: 'hidden',
-    backgroundColor: colors.surfaceAlt,
-  },
-  fill: {
-    height: 6,
-    borderRadius: 3,
-    transformOrigin: 'left',
-  },
-  footerText: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  footerLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    card: {
+      padding: 14,
+      gap: 12,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cardBlocked: {
+      borderColor: 'rgba(255, 92, 122, 0.4)',
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+    },
+    iconWrap: {
+      width: 52,
+      height: 52,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceAlt,
+    },
+    icon: {
+      width: 40,
+      height: 40,
+    },
+    meta: {
+      flex: 1,
+      gap: 3,
+    },
+    name: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    packageName: {
+      fontSize: 12,
+      color: colors.textMuted,
+    },
+    tagsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    categoryChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    categoryChipText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.accent,
+    },
+    scheduleTag: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: colors.textMuted,
+    },
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surfaceAlt,
+    },
+    pillLimited: {
+      backgroundColor: colors.primarySoft,
+    },
+    dot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+    },
+    pillText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    footer: {
+      gap: 8,
+    },
+    track: {
+      height: 6,
+      borderRadius: 3,
+      overflow: 'hidden',
+      backgroundColor: colors.surfaceAlt,
+    },
+    fill: {
+      height: 6,
+      borderRadius: 3,
+      transformOrigin: 'left',
+    },
+    footerText: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    footerLabel: {
+      fontSize: 12,
+      color: colors.textMuted,
+    },
+  });
+}

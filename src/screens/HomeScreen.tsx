@@ -13,11 +13,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppCard from '../components/AppCard';
 import CategoryChips, { CategoryFilter } from '../components/CategoryChips';
+import CategorySheet from '../components/CategorySheet';
 import EmptyState from '../components/EmptyState';
 import { AppFilter } from '../components/FilterChips';
 import FilterSheet from '../components/FilterSheet';
 import LimitSheet from '../components/LimitSheet';
 import PausedBanner from '../components/PausedBanner';
+import PinSheet from '../components/PinSheet';
 import ProtectionSwitch from '../components/ProtectionSwitch';
 import SearchBar from '../components/SearchBar';
 import SetupBanner from '../components/SetupBanner';
@@ -26,6 +28,8 @@ import { getAppCategory } from '../data/appCategories';
 import { useCategoryOverrides } from '../hooks/useCategoryOverrides';
 import { useFocusLock } from '../hooks/useFocusLock';
 import { useInstalledApps } from '../hooks/useInstalledApps';
+import { usePin } from '../hooks/usePin';
+import { useTheme } from '../hooks/useTheme';
 import {
   isFocusLockSupported,
   openAppInfoSettings,
@@ -33,7 +37,7 @@ import {
   openUsageAccessSettings,
   Schedule,
 } from '../native/FocusLock';
-import { colors, radius } from '../theme';
+import { radius, ThemeColors } from '../theme';
 import type { InstalledApp } from '../types';
 import {
   EMPTY_SCHEDULE,
@@ -70,8 +74,10 @@ function promptForPermission(permission: Permission) {
   ]);
 }
 
-export default function HomeScreen({ onLogout }: { onLogout: () => void }) {
+export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { colors, scheme, setScheme } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { apps, loading, refreshing, error, refresh } = useInstalledApps();
   const { schedules, usage, status, ready, saveSchedule, setEnabled } =
     useFocusLock();
@@ -84,11 +90,20 @@ export default function HomeScreen({ onLogout }: { onLogout: () => void }) {
     setOverride: setCategoryOverride,
     clearOverride: clearCategoryOverride,
   } = useCategoryOverrides();
+  const { hasPin, setPin, verifyPin } = usePin();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<AppFilter>('all');
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [editing, setEditing] = useState<InstalledApp | null>(null);
+  const [editingCategoryFor, setEditingCategoryFor] = useState<InstalledApp | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [pinGate, setPinGate] = useState<{ onSuccess: () => void } | null>(null);
+
+  // Any action that changes or removes a limit, or turns protection off, must
+  // go through the PIN first -- setup the first time, verification after that.
+  const runProtected = (action: () => void) => {
+    setPinGate({ onSuccess: action });
+  };
 
   const enter = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -188,8 +203,10 @@ export default function HomeScreen({ onLogout }: { onLogout: () => void }) {
     : 'Paused';
 
   const handleSave = (schedule: Schedule) => {
-    if (editing) {
-      saveSchedule(editing.packageName, schedule);
+    if (!editing) return;
+    const packageName = editing.packageName;
+    runProtected(() => {
+      saveSchedule(packageName, schedule);
       if (nextPermission) {
         // A limit does nothing until both permissions are granted, so ask again.
         promptForPermission(nextPermission);
@@ -197,22 +214,17 @@ export default function HomeScreen({ onLogout }: { onLogout: () => void }) {
         // The user clearly wants this limit enforced, so turn protection back on.
         setEnabled(true);
       }
-    }
-    setEditing(null);
+      setEditing(null);
+    });
   };
 
   const handleRemove = () => {
-    if (editing) {
-      saveSchedule(editing.packageName, EMPTY_SCHEDULE);
-    }
-    setEditing(null);
-  };
-
-  const confirmLogout = () => {
-    Alert.alert('Log out?', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Log out', style: 'destructive', onPress: onLogout },
-    ]);
+    if (!editing) return;
+    const packageName = editing.packageName;
+    runProtected(() => {
+      saveSchedule(packageName, EMPTY_SCHEDULE);
+      setEditing(null);
+    });
   };
 
   return (
@@ -240,7 +252,13 @@ export default function HomeScreen({ onLogout }: { onLogout: () => void }) {
               value={status.enabled && setupDone}
               disabled={!setupDone}
               label={switchLabel}
-              onValueChange={setEnabled}
+              onValueChange={value => {
+                if (value) {
+                  setEnabled(true);
+                } else {
+                  runProtected(() => setEnabled(false));
+                }
+              }}
             />
           )}
         </View>
@@ -249,6 +267,13 @@ export default function HomeScreen({ onLogout }: { onLogout: () => void }) {
           <View style={styles.searchBarWrap}>
             <SearchBar value={query} onChangeText={setQuery} />
           </View>
+          <Pressable
+            onPress={() => setScheme(scheme === 'light' ? 'dark' : 'light')}
+            style={styles.filterButton}
+            accessibilityLabel="Toggle theme"
+          >
+            <Text style={styles.themeIcon}>{scheme === 'light' ? '🌙' : '☀️'}</Text>
+          </Pressable>
           <Pressable
             onPress={() => setFiltersOpen(true)}
             style={styles.filterButton}
@@ -285,7 +310,11 @@ export default function HomeScreen({ onLogout }: { onLogout: () => void }) {
               limitMinutes={effectiveMinutesFor(scheduleFor(item.packageName), new Date())}
               usedMs={usage[item.packageName] ?? 0}
               timeBlocked={isBlockedByTimeWindow(scheduleFor(item.packageName), new Date())}
+              hasDateOverride={scheduleFor(item.packageName).overrides.length > 0}
+              hasDailyWindow={scheduleFor(item.packageName).dailyWindow != null}
+              category={getAppCategory(item, categoryOverrides)}
               onPress={setEditing}
+              onPressCategory={setEditingCategoryFor}
             />
           )}
           contentContainerStyle={[
@@ -339,15 +368,6 @@ export default function HomeScreen({ onLogout }: { onLogout: () => void }) {
               />
             )
           }
-          ListFooterComponent={
-            <Pressable
-              onPress={confirmLogout}
-              hitSlop={8}
-              style={styles.logoutRow}
-            >
-              <Text style={styles.logoutText}>Log out</Text>
-            </Pressable>
-          }
         />
       )}
 
@@ -355,19 +375,26 @@ export default function HomeScreen({ onLogout }: { onLogout: () => void }) {
         app={editing}
         schedule={editing ? scheduleFor(editing.packageName) : EMPTY_SCHEDULE}
         usedMs={editing ? usage[editing.packageName] ?? 0 : 0}
-        category={editing ? getAppCategory(editing, categoryOverrides) : 'other'}
-        categoryIsOverridden={
-          editing ? editing.packageName in categoryOverrides : false
-        }
         onSave={handleSave}
         onRemove={handleRemove}
+        onClose={() => setEditing(null)}
+      />
+
+      <CategorySheet
+        app={editingCategoryFor}
+        category={
+          editingCategoryFor ? getAppCategory(editingCategoryFor, categoryOverrides) : 'other'
+        }
+        categoryIsOverridden={
+          editingCategoryFor ? editingCategoryFor.packageName in categoryOverrides : false
+        }
         onSelectCategory={cat => {
-          if (editing) setCategoryOverride(editing.packageName, cat);
+          if (editingCategoryFor) setCategoryOverride(editingCategoryFor.packageName, cat);
         }}
         onResetCategory={() => {
-          if (editing) clearCategoryOverride(editing.packageName);
+          if (editingCategoryFor) clearCategoryOverride(editingCategoryFor.packageName);
         }}
-        onClose={() => setEditing(null)}
+        onClose={() => setEditingCategoryFor(null)}
       />
 
       <FilterSheet
@@ -377,11 +404,24 @@ export default function HomeScreen({ onLogout }: { onLogout: () => void }) {
         onChangeFilter={setFilter}
         onClose={() => setFiltersOpen(false)}
       />
+
+      <PinSheet
+        visible={pinGate != null}
+        mode={hasPin ? 'verify' : 'setup'}
+        onSetPin={setPin}
+        verifyPin={verifyPin}
+        onSuccess={() => {
+          pinGate?.onSuccess();
+          setPinGate(null);
+        }}
+        onCancel={() => setPinGate(null)}
+      />
     </Animated.View>
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   root: {
     flex: 1,
   },
@@ -431,6 +471,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.border,
   },
+  themeIcon: {
+    fontSize: 20,
+  },
   filterIcon: {
     gap: 4,
     alignItems: 'flex-start',
@@ -462,14 +505,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 12,
   },
-  logoutRow: {
-    alignItems: 'center',
-    marginTop: 20,
-    paddingVertical: 8,
-  },
-  logoutText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textMuted,
-  },
-});
+  });
+}

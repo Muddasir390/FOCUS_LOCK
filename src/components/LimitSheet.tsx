@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Image,
@@ -13,9 +13,9 @@ import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Calendar, DateData } from 'react-native-calendars';
 import type { MarkedDates, Theme } from 'react-native-calendars/src/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppCategory, CATEGORY_LABELS } from '../data/appCategories';
+import { useTheme } from '../hooks/useTheme';
 import { DateOverride, Schedule, WeekSchedule } from '../native/FocusLock';
-import { colors, radius } from '../theme';
+import { radius, ThemeColors } from '../theme';
 import type { InstalledApp } from '../types';
 import { effectiveMinutesFor, hasAnyLimit, isBlockedByTimeWindow, toIsoDate } from '../utils/schedule';
 import {
@@ -34,37 +34,32 @@ type Props = {
   schedule: Schedule;
   /** Time spent in the app today, in milliseconds. */
   usedMs: number;
-  /** The app's resolved category (auto-detected, unless the user corrected it). */
-  category: AppCategory;
-  /** Whether `category` is a user correction rather than an auto-detected guess. */
-  categoryIsOverridden: boolean;
   onSave: (schedule: Schedule) => void;
   onRemove: () => void;
-  onSelectCategory: (category: AppCategory) => void;
-  onResetCategory: () => void;
   onClose: () => void;
 };
 
 const DEFAULT_LIMIT = 30;
 const PRESETS = [15, 30, 60, 120];
-const CATEGORIES = Object.keys(CATEGORY_LABELS) as AppCategory[];
 
-const calendarTheme: Theme = {
-  backgroundColor: colors.surface,
-  calendarBackground: colors.surface,
-  textSectionTitleColor: colors.textMuted,
-  selectedDayBackgroundColor: colors.primary,
-  selectedDayTextColor: '#FFFFFF',
-  todayTextColor: colors.accent,
-  dayTextColor: colors.text,
-  textDisabledColor: colors.textMuted,
-  arrowColor: colors.primary,
-  monthTextColor: colors.text,
-  indicatorColor: colors.primary,
-  textDayFontWeight: '600',
-  textMonthFontWeight: '800',
-  textDayHeaderFontWeight: '700',
-};
+function createCalendarTheme(colors: ThemeColors): Theme {
+  return {
+    backgroundColor: colors.surface,
+    calendarBackground: colors.surface,
+    textSectionTitleColor: colors.textMuted,
+    selectedDayBackgroundColor: colors.primary,
+    selectedDayTextColor: '#FFFFFF',
+    todayTextColor: colors.accent,
+    dayTextColor: colors.text,
+    textDisabledColor: colors.textMuted,
+    arrowColor: colors.primary,
+    monthTextColor: colors.text,
+    indicatorColor: colors.primary,
+    textDayFontWeight: '600',
+    textMonthFontWeight: '800',
+    textDayHeaderFontWeight: '700',
+  };
+}
 
 /** Every ISO date from `start` to `end`, inclusive. */
 function datesBetween(start: string, end: string): string[] {
@@ -78,7 +73,11 @@ function datesBetween(start: string, end: string): string[] {
   return result;
 }
 
-function markRange(start: string | null, end: string | null): MarkedDates {
+function markRange(
+  start: string | null,
+  end: string | null,
+  colors: ThemeColors,
+): MarkedDates {
   if (!start) return {};
   const days = datesBetween(start, end ?? start);
   const marks: MarkedDates = {};
@@ -101,13 +100,37 @@ function formatDateLabel(iso: string): string {
   });
 }
 
+function createRoundButtonStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    round: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    roundText: {
+      fontSize: 28,
+      lineHeight: 32,
+      fontWeight: '600',
+      color: colors.text,
+    },
+  });
+}
+
 function RoundButton({
   label,
+  colors,
   onPress,
 }: {
   label: string;
+  colors: ThemeColors;
   onPress: () => void;
 }) {
+  const styles = useMemo(() => createRoundButtonStyles(colors), [colors]);
   const scale = useRef(new Animated.Value(1)).current;
   const springTo = (toValue: number) =>
     Animated.spring(scale, {
@@ -136,15 +159,14 @@ export default function LimitSheet({
   app,
   schedule,
   usedMs,
-  category,
-  categoryIsOverridden,
   onSave,
   onRemove,
-  onSelectCategory,
-  onResetCategory,
   onClose,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const calendarTheme = useMemo(() => createCalendarTheme(colors), [colors]);
   const [shown, setShown] = useState<InstalledApp | null>(app);
   const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<'edit' | 'addDate'>('edit');
@@ -316,6 +338,7 @@ export default function LimitSheet({
       <View style={styles.stepper}>
         <RoundButton
           label="−"
+          colors={colors}
           onPress={() => setStepperValue(stepLimit(stepperValue, -1))}
         />
         <Animated.Text
@@ -325,6 +348,7 @@ export default function LimitSheet({
         </Animated.Text>
         <RoundButton
           label="+"
+          colors={colors}
           onPress={() => setStepperValue(stepLimit(stepperValue, 1))}
         />
       </View>
@@ -356,6 +380,18 @@ export default function LimitSheet({
           <Text style={styles.zeroLink}>Block completely</Text>
         </Pressable>
       )}
+    </>
+  );
+
+  // One label + short explainer above each card, so the three limit types read
+  // as distinct rules at a glance instead of one continuous list of settings.
+  const sectionHeader = (icon: string, title: string, desc: string) => (
+    <>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionIcon}>{icon}</Text>
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
+      <Text style={styles.sectionDesc}>{desc}</Text>
     </>
   );
 
@@ -405,106 +441,43 @@ export default function LimitSheet({
 
             {mode === 'edit' ? (
               <>
-                <Text style={styles.caption}>Category</Text>
-                <View style={styles.categoryRow}>
-                  {CATEGORIES.map(key => (
+                <View style={styles.sectionCard}>
+                  {sectionHeader('⏱️', 'Daily limit', 'How much time this app gets, every day.')}
+                  {stepperBlock}
+                </View>
+
+                <View style={styles.sectionCard}>
+                  {sectionHeader(
+                    '🌙',
+                    'Daily time block',
+                    'Blocks the app during these hours every day, no matter how much time is left.',
+                  )}
+                  <View style={styles.segmented}>
                     <Pressable
-                      key={key}
-                      onPress={() => onSelectCategory(key)}
-                      style={[
-                        styles.categoryPill,
-                        category === key && styles.categoryPillActive,
-                      ]}
+                      style={[styles.segment, !dailyWindowEnabled && styles.segmentActive]}
+                      onPress={() => setDailyWindowEnabled(false)}
                     >
                       <Text
                         style={[
-                          styles.categoryPillText,
-                          category === key && styles.categoryPillTextActive,
+                          styles.segmentText,
+                          !dailyWindowEnabled && styles.segmentTextActive,
                         ]}
                       >
-                        {CATEGORY_LABELS[key]}
+                        Off
                       </Text>
                     </Pressable>
-                  ))}
-                </View>
-                {categoryIsOverridden && (
-                  <Pressable onPress={onResetCategory} hitSlop={8}>
-                    <Text style={styles.resetCategory}>Reset to automatic</Text>
-                  </Pressable>
-                )}
-
-                <Text style={styles.caption}>Daily limit</Text>
-                {stepperBlock}
-
-                <Text style={styles.caption}>Date limits</Text>
-                {overrides.length === 0 ? (
-                  <Text style={styles.emptyDates}>
-                    No date limits yet — add one for a specific day or range.
-                  </Text>
-                ) : (
-                  <View style={styles.datesList}>
-                    {overrides.map((o, index) => (
-                      <View key={`${o.start}-${o.end}-${index}`} style={styles.dateRow}>
-                        <View style={styles.dateRowMeta}>
-                          <Text style={styles.dateRowRange}>
-                            {o.start === o.end
-                              ? formatDateLabel(o.start)
-                              : `${formatDateLabel(o.start)} – ${formatDateLabel(o.end)}`}
-                          </Text>
-                          {o.startTime && o.endTime && (
-                            <Text style={styles.dateRowTimeRange}>
-                              {formatTimeLabel(o.startTime)} – {formatTimeLabel(o.endTime)}
-                            </Text>
-                          )}
-                        </View>
-                        <Text style={styles.dateRowMinutes}>
-                          {o.minutes > 0 ? formatMinutes(o.minutes) : 'Blocked'}
-                        </Text>
-                        <Pressable
-                          onPress={() => removeOverride(index)}
-                          hitSlop={8}
-                        >
-                          <Text style={styles.removeDate}>✕</Text>
-                        </Pressable>
-                      </View>
-                    ))}
+                    <Pressable
+                      style={[styles.segment, dailyWindowEnabled && styles.segmentActive]}
+                      onPress={() => setDailyWindowEnabled(true)}
+                    >
+                      <Text
+                        style={[styles.segmentText, dailyWindowEnabled && styles.segmentTextActive]}
+                      >
+                        On
+                      </Text>
+                    </Pressable>
                   </View>
-                )}
-                <Pressable style={styles.addDateButton} onPress={enterAddDateMode}>
-                  <Text style={styles.addDateButtonText}>+ Add date limit</Text>
-                </Pressable>
-
-                <Text style={styles.caption}>Daily time block</Text>
-                <View style={styles.segmented}>
-                  <Pressable
-                    style={[styles.segment, !dailyWindowEnabled && styles.segmentActive]}
-                    onPress={() => setDailyWindowEnabled(false)}
-                  >
-                    <Text
-                      style={[
-                        styles.segmentText,
-                        !dailyWindowEnabled && styles.segmentTextActive,
-                      ]}
-                    >
-                      Off
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.segment, dailyWindowEnabled && styles.segmentActive]}
-                    onPress={() => setDailyWindowEnabled(true)}
-                  >
-                    <Text
-                      style={[styles.segmentText, dailyWindowEnabled && styles.segmentTextActive]}
-                    >
-                      On
-                    </Text>
-                  </Pressable>
-                </View>
-                {dailyWindowEnabled && (
-                  <>
-                    <Text style={styles.emptyDates}>
-                      Blocks this app every day, regardless of its minute limit.
-                    </Text>
+                  {dailyWindowEnabled && (
                     <View style={styles.timeRow}>
                       <Pressable
                         style={styles.timeButton}
@@ -525,8 +498,52 @@ export default function LimitSheet({
                         </Text>
                       </Pressable>
                     </View>
-                  </>
-                )}
+                  )}
+                </View>
+
+                <View style={styles.sectionCard}>
+                  {sectionHeader(
+                    '📅',
+                    'Date limits',
+                    'Override the daily limit for a specific day or range.',
+                  )}
+                  {overrides.length === 0 ? (
+                    <Text style={styles.emptyDates}>
+                      No date limits yet — add one for a specific day or range.
+                    </Text>
+                  ) : (
+                    <View style={styles.datesList}>
+                      {overrides.map((o, index) => (
+                        <View key={`${o.start}-${o.end}-${index}`} style={styles.dateRow}>
+                          <View style={styles.dateRowMeta}>
+                            <Text style={styles.dateRowRange}>
+                              {o.start === o.end
+                                ? formatDateLabel(o.start)
+                                : `${formatDateLabel(o.start)} – ${formatDateLabel(o.end)}`}
+                            </Text>
+                            {o.startTime && o.endTime && (
+                              <Text style={styles.dateRowTimeRange}>
+                                {formatTimeLabel(o.startTime)} – {formatTimeLabel(o.endTime)}
+                              </Text>
+                            )}
+                          </View>
+                          <Text style={styles.dateRowMinutes}>
+                            {o.minutes > 0 ? formatMinutes(o.minutes) : 'Blocked'}
+                          </Text>
+                          <Pressable
+                            onPress={() => removeOverride(index)}
+                            hitSlop={8}
+                          >
+                            <Text style={styles.removeDate}>✕</Text>
+                          </Pressable>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  <Pressable style={styles.addDateButton} onPress={enterAddDateMode}>
+                    <Text style={styles.addDateButtonText}>+ Add date limit</Text>
+                  </Pressable>
+                </View>
 
                 <Text
                   style={[
@@ -554,64 +571,82 @@ export default function LimitSheet({
               </>
             ) : (
               <>
-                <Text style={styles.caption}>Pick a date or range</Text>
-                <View style={styles.calendarWrap}>
-                  <Calendar
-                    markingType="period"
-                    markedDates={markRange(pickStart, pickEnd)}
-                    onDayPress={handleDayPress}
-                    theme={calendarTheme}
-                  />
+                <View style={styles.sectionCard}>
+                  {sectionHeader(
+                    '📅',
+                    'Pick a date or range',
+                    'Choose which day — or range of days — this override applies to.',
+                  )}
+                  <View style={styles.calendarWrap}>
+                    <Calendar
+                      markingType="period"
+                      markedDates={markRange(pickStart, pickEnd, colors)}
+                      onDayPress={handleDayPress}
+                      theme={calendarTheme}
+                    />
+                  </View>
                 </View>
 
-                <Text style={styles.caption}>Limit for these dates</Text>
-                {stepperBlock}
-
-                <Text style={styles.caption}>Time of day</Text>
-                <View style={styles.segmented}>
-                  <Pressable
-                    style={[styles.segment, overrideAllDay && styles.segmentActive]}
-                    onPress={() => setOverrideAllDay(true)}
-                  >
-                    <Text
-                      style={[styles.segmentText, overrideAllDay && styles.segmentTextActive]}
-                    >
-                      All day
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.segment, !overrideAllDay && styles.segmentActive]}
-                    onPress={() => setOverrideAllDay(false)}
-                  >
-                    <Text
-                      style={[styles.segmentText, !overrideAllDay && styles.segmentTextActive]}
-                    >
-                      Specific hours
-                    </Text>
-                  </Pressable>
+                <View style={styles.sectionCard}>
+                  {sectionHeader(
+                    '⏱️',
+                    'Limit for these dates',
+                    'How much time the app gets on the dates you picked.',
+                  )}
+                  {stepperBlock}
                 </View>
-                {!overrideAllDay && (
-                  <View style={styles.timeRow}>
+
+                <View style={styles.sectionCard}>
+                  {sectionHeader(
+                    '🕐',
+                    'Time of day',
+                    'Apply this limit all day, or only during specific hours.',
+                  )}
+                  <View style={styles.segmented}>
                     <Pressable
-                      style={styles.timeButton}
-                      onPress={() => pickTime(overrideStartTime, setOverrideStartTime)}
+                      style={[styles.segment, overrideAllDay && styles.segmentActive]}
+                      onPress={() => setOverrideAllDay(true)}
                     >
-                      <Text style={styles.timeButtonLabel}>From</Text>
-                      <Text style={styles.timeButtonValue}>
-                        {formatTimeLabel(overrideStartTime)}
+                      <Text
+                        style={[styles.segmentText, overrideAllDay && styles.segmentTextActive]}
+                      >
+                        All day
                       </Text>
                     </Pressable>
                     <Pressable
-                      style={styles.timeButton}
-                      onPress={() => pickTime(overrideEndTime, setOverrideEndTime)}
+                      style={[styles.segment, !overrideAllDay && styles.segmentActive]}
+                      onPress={() => setOverrideAllDay(false)}
                     >
-                      <Text style={styles.timeButtonLabel}>To</Text>
-                      <Text style={styles.timeButtonValue}>
-                        {formatTimeLabel(overrideEndTime)}
+                      <Text
+                        style={[styles.segmentText, !overrideAllDay && styles.segmentTextActive]}
+                      >
+                        Specific hours
                       </Text>
                     </Pressable>
                   </View>
-                )}
+                  {!overrideAllDay && (
+                    <View style={styles.timeRow}>
+                      <Pressable
+                        style={styles.timeButton}
+                        onPress={() => pickTime(overrideStartTime, setOverrideStartTime)}
+                      >
+                        <Text style={styles.timeButtonLabel}>From</Text>
+                        <Text style={styles.timeButtonValue}>
+                          {formatTimeLabel(overrideStartTime)}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.timeButton}
+                        onPress={() => pickTime(overrideEndTime, setOverrideEndTime)}
+                      >
+                        <Text style={styles.timeButtonLabel}>To</Text>
+                        <Text style={styles.timeButtonValue}>
+                          {formatTimeLabel(overrideEndTime)}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
 
                 <View style={styles.pickerButtonsRow}>
                   <Pressable
@@ -640,7 +675,8 @@ export default function LimitSheet({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   root: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -701,74 +737,44 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
   },
-  caption: {
-    marginTop: 26,
-    textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: colors.textMuted,
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 10,
-  },
-  categoryPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: radius.pill,
+  sectionCard: {
+    marginTop: 18,
+    padding: 16,
+    borderRadius: radius.lg,
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  categoryPillActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  categoryPillText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textMuted,
+  sectionIcon: {
+    fontSize: 15,
   },
-  categoryPillTextActive: {
-    color: '#FFFFFF',
-  },
-  resetCategory: {
-    alignSelf: 'center',
-    marginTop: 8,
+  sectionTitle: {
     fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: colors.text,
+  },
+  sectionDesc: {
+    marginTop: 4,
+    marginBottom: 14,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
   },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
   },
   value: {
     fontSize: 52,
     fontWeight: '800',
-    color: colors.text,
-  },
-  round: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  roundText: {
-    fontSize: 28,
-    lineHeight: 32,
-    fontWeight: '600',
     color: colors.text,
   },
   presets: {
@@ -781,7 +787,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 9,
     borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -805,14 +811,12 @@ const styles = StyleSheet.create({
     color: colors.danger,
   },
   emptyDates: {
-    marginTop: 10,
     textAlign: 'center',
     fontSize: 13,
     lineHeight: 18,
     color: colors.textMuted,
   },
   datesList: {
-    marginTop: 10,
     gap: 8,
   },
   dateRow: {
@@ -822,7 +826,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -863,7 +867,6 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
   calendarWrap: {
-    marginTop: 10,
     borderRadius: radius.md,
     overflow: 'hidden',
     borderWidth: 1,
@@ -871,9 +874,8 @@ const styles = StyleSheet.create({
   },
   segmented: {
     flexDirection: 'row',
-    marginTop: 10,
     borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 3,
@@ -905,7 +907,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -993,4 +995,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.danger,
   },
-});
+  });
+}
